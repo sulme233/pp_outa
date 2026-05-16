@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "ChatGPT 支付助手",
+  "version": "1.0.0",
+  "description": "ChatGPT订阅支付辅助工具 - 自动填写卡信息、跳转支付链接",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": [
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/*",
+    "https://checkout.stripe.com/*",
+    "https://www.paypal.com/*",
+    "https://www.sandbox.paypal.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chat.openai.com/*", "https://chatgpt.com/*"],
+      "js": ["content-chatgpt.js"],
+      "css": ["content-chatgpt.css"]
+    },
+    {
+      "matches": ["https://checkout.stripe.com/*"],
+      "js": ["content-stripe.js"],
+      "css": ["content-stripe.css"]
+    },
+    {
+      "matches": ["https://www.paypal.com/*", "https://www.sandbox.paypal.com/*"],
+      "js": ["content-paypal.js"],
+      "css": ["content-paypal.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

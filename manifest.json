@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "逐字粘贴助手",
+  "version": "1.0.0",
+  "description": "拦截 Ctrl + V 粘贴内容，并将剪贴板文本逐字模拟输入到当前输入框中。",
+  "action": {
+    "default_title": "逐字粘贴助手",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}

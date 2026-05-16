@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate Icons</title>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <script>
+    function generateIcon(size) {
+      const canvas = document.getElementById('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#10a37f');
+      gradient.addColorStop(1, '#1a7f64');
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.roundRect(0, 0, size, size, size * 0.2);
+      ctx.fill();
+
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${size * 0.5}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('$', size / 2, size / 2);
+
+      return canvas.toDataURL('image/png');
+    }
+
+    const sizes = [16, 48, 128];
+    const links = [];
+
+    sizes.forEach(size => {
+      const dataUrl = generateIcon(size);
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `icon${size}.png`;
+      a.textContent = `Download icon${size}.png`;
+      a.style.display = 'block';
+      a.style.margin = '10px';
+      document.body.appendChild(a);
+      links.push(a);
+    });
+
+    const p = document.createElement('p');
+    p.textContent = 'Click the links above to download the icon files, then place them in the icons folder.';
+    document.body.appendChild(p);
+  </script>
+</body>
+</html>
