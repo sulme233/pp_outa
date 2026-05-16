@@ -3,6 +3,90 @@
 
   let paymentBtn = null;
   let registerBtn = null;
+  let emailCheckInterval = null;
+
+  async function fetchEmailCode() {
+    try {
+      const result = await chrome.storage.local.get(['emailInfo']);
+      const { emailInfo } = result;
+      if (!emailInfo || !emailInfo.email || !emailInfo.clientId || !emailInfo.refreshToken) {
+        return null;
+      }
+
+      const response = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: 'fetchEmailCode',
+          emailApiUrl: 'https://apple.882263.xyz',
+          email: emailInfo.email,
+          clientId: emailInfo.clientId,
+          refreshToken: emailInfo.refreshToken
+        }, (res) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(res);
+          }
+        });
+      });
+
+      if (response && response.success && response.code) {
+        return response.code;
+      }
+      return null;
+    } catch (error) {
+      console.error('[GPT Helper] Fetch email code error:', error);
+      return null;
+    }
+  }
+
+  function startAutoEmailCheck() {
+    if (emailCheckInterval) {
+      clearInterval(emailCheckInterval);
+    }
+
+    let checkCount = 0;
+    const maxChecks = 60;
+
+    emailCheckInterval = setInterval(async () => {
+      checkCount++;
+
+      if (checkCount > maxChecks) {
+        clearInterval(emailCheckInterval);
+        emailCheckInterval = null;
+        showNotification('验证码获取超时，请手动获取', 'error');
+        return;
+      }
+
+      const code = await fetchEmailCode();
+      if (code) {
+        clearInterval(emailCheckInterval);
+        emailCheckInterval = null;
+
+        const codeInput = document.querySelector('input[name="code"]') ||
+                         document.querySelector('input[placeholder*="code"]') ||
+                         document.querySelector('input[placeholder*="Code"]') ||
+                         document.querySelector('input[type="tel"]') ||
+                         document.querySelector('input[type="number"]') ||
+                         document.querySelector('input[code]');
+
+        if (codeInput) {
+          await simulateHumanInput(codeInput, code);
+          showNotification(`验证码 ${code} 已自动填入`, 'success');
+
+          await new Promise(r => setTimeout(r, 800));
+          const continueBtn = document.querySelector('button[type="submit"]') ||
+                             document.querySelector('button.continue-btn') ||
+                             document.querySelector('button');
+          if (continueBtn && continueBtn.textContent.toLowerCase().includes('continue')) {
+            await simulateClick(continueBtn);
+          }
+        } else {
+          await navigator.clipboard.writeText(code);
+          showNotification(`验证码 ${code} 已复制到剪贴板`, 'success');
+        }
+      }
+    }, 3000);
+  }
 
   function setNativeValue(element, value) {
     const proto = Object.getPrototypeOf(element);
@@ -204,7 +288,9 @@
 
         if (continueBtn) {
           await simulateClick(continueBtn);
-          showNotification('邮箱已输入，等待验证...', 'info');
+          showNotification('邮箱已输入，正在等待验证码...', 'info');
+          await new Promise(r => setTimeout(r, 3000));
+          startAutoEmailCheck();
         }
       } else {
         showNotification('未找到邮箱输入框', 'error');
@@ -280,6 +366,12 @@
         (window.location.href.includes('auth0.openai.com') ||
          window.location.href.includes('chatgpt.com/auth/login'))) {
       createRegisterButton();
+    }
+
+    const pageText = document.body.innerText || '';
+    if ((pageText.includes('Check your inbox') || (pageText.includes('Enter the') && pageText.includes('code'))) &&
+        !emailCheckInterval) {
+      startAutoEmailCheck();
     }
   });
 

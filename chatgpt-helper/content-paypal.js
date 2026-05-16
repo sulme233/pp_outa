@@ -2,7 +2,7 @@
   'use strict';
 
   let ppBtn = null;
-  let smsCheckInterval = null;
+  let emailCheckInterval = null;
 
   function generatePassword(length = 16) {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
@@ -104,46 +104,62 @@
     return null;
   }
 
-  async function fetchSmsCode(apiUrl) {
+  async function fetchEmailCode() {
     try {
-      const response = await fetch(apiUrl);
-      const data = await response.json();
+      const result = await chrome.storage.local.get(['emailInfo']);
+      const { emailInfo } = result;
+      if (!emailInfo || !emailInfo.email || !emailInfo.clientId || !emailInfo.refreshToken) {
+        return null;
+      }
 
-      if (data && data.code) {
-        return data.code;
-      } else if (data && data.sms) {
-        const codeMatch = data.sms.match(/\d{4,6}/);
-        if (codeMatch) return codeMatch[0];
+      const response = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: 'fetchEmailCode',
+          emailApiUrl: 'https://apple.882263.xyz',
+          email: emailInfo.email,
+          clientId: emailInfo.clientId,
+          refreshToken: emailInfo.refreshToken
+        }, (res) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(res);
+          }
+        });
+      });
+
+      if (response && response.success && response.code) {
+        return response.code;
       }
       return null;
     } catch (error) {
-      console.error('[PP Helper] Fetch SMS error:', error);
+      console.error('[PP Helper] Fetch email code error:', error);
       return null;
     }
   }
 
-  function startAutoSmsCheck(apiUrl) {
-    if (smsCheckInterval) {
-      clearInterval(smsCheckInterval);
+  function startAutoEmailCheck() {
+    if (emailCheckInterval) {
+      clearInterval(emailCheckInterval);
     }
 
     let checkCount = 0;
     const maxChecks = 60;
 
-    smsCheckInterval = setInterval(async () => {
+    emailCheckInterval = setInterval(async () => {
       checkCount++;
 
       if (checkCount > maxChecks) {
-        clearInterval(smsCheckInterval);
-        smsCheckInterval = null;
+        clearInterval(emailCheckInterval);
+        emailCheckInterval = null;
         showNotification('验证码获取超时，请手动获取', 'error');
         return;
       }
 
-      const code = await fetchSmsCode(apiUrl);
+      const code = await fetchEmailCode();
       if (code) {
-        clearInterval(smsCheckInterval);
-        smsCheckInterval = null;
+        clearInterval(emailCheckInterval);
+        emailCheckInterval = null;
 
         const codeInput = findElement([
           'input[name="code"]',
@@ -202,9 +218,9 @@
                              document.body.innerHTML.includes('verification code') ||
                              document.body.innerHTML.includes('Enter the code');
 
-      if (isVerification && ppSettings?.smsApiUrl) {
-        showNotification('检测到验证码页面，正在自动获取...', 'info');
-        startAutoSmsCheck(ppSettings.smsApiUrl);
+      if (isVerification) {
+        showNotification('检测到验证码页面，正在自动获取邮件验证码...', 'info');
+        startAutoEmailCheck();
       } else if (isRegistration) {
         await fillPPRegistration(cardInfo, addressInfo, ppSettings);
       } else {

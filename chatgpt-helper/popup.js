@@ -13,9 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const emailPassword = document.getElementById('emailPassword');
   const clientId = document.getElementById('clientId');
   const refreshToken = document.getElementById('refreshToken');
-  const rawPhoneInfo = document.getElementById('rawPhoneInfo');
   const ppPhone = document.getElementById('ppPhone');
-  const smsApiUrl = document.getElementById('smsApiUrl');
   const statusLog = document.getElementById('statusLog');
   const toggleSimulate = document.getElementById('toggleSimulate');
 
@@ -51,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (result.ppSettings) {
       ppPhone.value = result.ppSettings.phone || '+15828882140';
-      smsApiUrl.value = result.ppSettings.smsApiUrl || '';
       if (result.ppSettings.autoSimulate === false) {
         toggleSimulate.classList.remove('active');
       }
@@ -186,31 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
     addLog(`邮箱: ${emailInfo.email}`, 'info');
   });
 
-  document.getElementById('parsePhoneInfo').addEventListener('click', () => {
-    const raw = rawPhoneInfo.value.trim();
-    if (!raw) {
-      addLog('请先粘贴手机号信息', 'error');
-      return;
-    }
-
-    const parts = raw.split('----').map(p => p.trim());
-    const phone = parts[0] || '';
-    const smsApi = parts[1] || '';
-
-    ppPhone.value = phone;
-    smsApiUrl.value = smsApi;
-
-    const ppSettings = {
-      phone: phone,
-      smsApiUrl: smsApi,
-      autoSimulate: toggleSimulate.classList.contains('active')
-    };
-
-    chrome.storage.local.set({ ppSettings });
-    addLog('手机号信息解析成功并已保存', 'success');
-    addLog(`手机号: ${phone}`, 'info');
-  });
-
   document.getElementById('saveCardInfo').addEventListener('click', () => {
     const cardInfo = {
       number: cardNumber.value.replace(/\s/g, ''),
@@ -298,43 +270,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('fetchSmsCode').addEventListener('click', async () => {
-    const apiUrl = smsApiUrl.value.trim();
-    if (!apiUrl) {
-      addLog('请先设置短信验证码API', 'error');
-      return;
-    }
-
-    addLog('正在获取验证码...', 'info');
-
-    try {
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-
-      if (data && data.code) {
-        addLog(`验证码: ${data.code}`, 'success');
-        await navigator.clipboard.writeText(data.code);
-        addLog('验证码已复制到剪贴板', 'success');
-      } else if (data && data.sms) {
-        const codeMatch = data.sms.match(/\d{4,6}/);
-        if (codeMatch) {
-          addLog(`验证码: ${codeMatch[0]}`, 'success');
-          await navigator.clipboard.writeText(codeMatch[0]);
-          addLog('验证码已复制到剪贴板', 'success');
-        } else {
-          addLog('未找到验证码', 'error');
-        }
-      } else {
-        addLog('API返回: ' + JSON.stringify(data), 'info');
-      }
-    } catch (error) {
-      addLog('获取验证码失败: ' + error.message, 'error');
-    }
-  });
-
   document.getElementById('fetchEmailCode').addEventListener('click', async () => {
-    const emailApiUrl = document.getElementById('emailApiUrl').value.trim();
+    const emailApiUrl = document.getElementById('emailApiUrl').value.trim().replace(/\/+$/, '');
     const email = emailAddress.value.trim();
+    const cid = clientId.value.trim();
+    const rtoken = refreshToken.value.trim();
     const emailCodeResult = document.getElementById('emailCodeResult');
     const emailCodeContent = document.getElementById('emailCodeContent');
 
@@ -343,21 +283,21 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (!email) {
-      addLog('请先填写邮箱地址', 'error');
+    if (!email || !cid || !rtoken) {
+      addLog('请先填写邮箱、Client ID和Refresh Token', 'error');
       return;
     }
 
     addLog('正在读取邮件验证码...', 'info');
 
     try {
-      const response = await fetch(`${emailApiUrl}api/mailbox/${email}`);
+      const url = `${emailApiUrl}/api/mail-new?refresh_token=${encodeURIComponent(rtoken)}&client_id=${encodeURIComponent(cid)}&email=${encodeURIComponent(email)}&mailbox=INBOX&response_type=json`;
+      const response = await fetch(url);
       const data = await response.json();
 
-      if (data && data.messages && data.messages.length > 0) {
-        const latestEmail = data.messages[0];
-        const subject = latestEmail.subject || '';
-        const body = latestEmail.body || latestEmail.text || '';
+      if (data && data.subject) {
+        const subject = data.subject || '';
+        const body = data.body || data.text || data.content || '';
 
         const codeMatch = subject.match(/\d{4,6}/) || body.match(/\d{4,6}/);
 
@@ -373,10 +313,14 @@ document.addEventListener('DOMContentLoaded', () => {
           emailCodeResult.style.display = 'block';
           emailCodeContent.innerHTML = `<div style="color: #ff6b6b;">未找到验证码</div><div style="color: #8892b0; margin-top: 4px;">主题: ${subject}</div>`;
         }
+      } else if (data && data.error) {
+        addLog('API错误: ' + data.error, 'error');
+        emailCodeResult.style.display = 'block';
+        emailCodeContent.innerHTML = `<div style="color: #ff6b6b;">${data.error}</div>`;
       } else {
         addLog('未找到邮件', 'error');
         emailCodeResult.style.display = 'block';
-        emailCodeContent.innerHTML = '<div style="color: #ff6b6b;">未找到邮件</div>';
+        emailCodeContent.innerHTML = `<div style="color: #ff6b6b;">未找到邮件</div>`;
       }
     } catch (error) {
       addLog('读取邮件失败: ' + error.message, 'error');
@@ -395,12 +339,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const settings = result.ppSettings || {};
       settings.autoSimulate = toggleSimulate.classList.contains('active');
       settings.phone = ppPhone.value || '+15828882140';
-      settings.smsApiUrl = smsApiUrl.value;
       chrome.storage.local.set({ ppSettings: settings });
     });
   }
 
-  [ppPhone, smsApiUrl].forEach(el => {
+  [ppPhone].forEach(el => {
     el.addEventListener('change', updateSettings);
   });
 

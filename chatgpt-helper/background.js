@@ -65,6 +65,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'fetchEmailCode') {
+    const { emailApiUrl, email, clientId, refreshToken } = request;
+    const baseUrl = emailApiUrl.replace(/\/+$/, '');
+    const url = `${baseUrl}/api/mail-new?refresh_token=${encodeURIComponent(refreshToken)}&client_id=${encodeURIComponent(clientId)}&email=${encodeURIComponent(email)}&mailbox=INBOX&response_type=json`;
+    fetch(url)
+      .then(response => response.json())
+      .then(data => {
+        if (data && data.subject) {
+          const subject = data.subject || '';
+          const body = data.body || data.text || data.content || '';
+          const codeMatch = subject.match(/\d{4,6}/) || body.match(/\d{4,6}/);
+          sendResponse({ success: true, code: codeMatch ? codeMatch[0] : null, subject });
+        } else if (data && data.error) {
+          sendResponse({ success: false, error: data.error });
+        } else {
+          sendResponse({ success: false, error: '未找到邮件' });
+        }
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
+
   if (request.action === 'registerGPT') {
     const { emailInfo } = request;
     sendResponse({ success: true, message: '注册请求已发送' });
