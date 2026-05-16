@@ -201,6 +201,16 @@ document.addEventListener('DOMContentLoaded', () => {
     addLog('卡信息已保存', 'success');
   });
 
+  document.getElementById('gotoRegister').addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://chatgpt.com/auth/login' });
+    addLog('正在打开GPT注册页面...', 'info');
+  });
+
+  document.getElementById('gotoSession').addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://chatgpt.com/api/auth/session' });
+    addLog('正在获取Session...', 'info');
+  });
+
   document.getElementById('getPaymentLink').addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
